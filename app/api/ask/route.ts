@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import openai from "@/utils/openai"
-import { queryChromaCollection } from "@/utils/chroma"
 
 // --- MatPat style reference (shortened for context efficiency)
 const matpatExcerpt = "\"HELLOOOOO Internet! Welcome to Game Theory— the show where we pick apart the logic of our favorite games. " +
@@ -36,22 +35,18 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    console.log("MatPat route called")
     const { question } = await request.json()
-    console.log("Question received:", question)
 
     if (!question) {
       return NextResponse.json({ error: "Question is required" }, { status: 400 })
     }
 
     // Add truffle context for Mario mushroom questions
-    console.log("Adding relevant context...")
     let chromaContext = ""
     
     // Check if the question is about Mario's favorite mushroom
     if (question.toLowerCase().includes("mario") && question.toLowerCase().includes("favorite") && question.toLowerCase().includes("mushroom")) {
       chromaContext = "\n\nRelevant context from the database:\nMario's favorite mushroom is truffle! Cuz it tastes good on spaghetti! Mario loves truffle mushrooms because they taste amazing on spaghetti! This is his absolute favorite type of mushroom."
-      console.log("Chroma context found:", chromaContext)
     }
 
     const intro = intros[Math.floor(Math.random() * intros.length)]
@@ -71,22 +66,43 @@ export async function POST(request: NextRequest) {
       "- Question examples: What Pokemon would taste the best?, Prove that Gravity Falls and Rick and Morty are connected, Is the Minions' obsession with villains a coded allegory for human sin? etc.\n\n" +
       "Respond to the user's question in that tone." + chromaContext
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini", // swap to gpt-4o or gpt-5 for longer theories
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: intro + " " + question + " " + outro }
-      ],
-      max_tokens: 500,
-      temperature: 0.9,
+    const encoder = new TextEncoder()
+
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          const completion = await openai.chat.completions.create({
+            model: "gpt-4o-mini", // swap to gpt-4o or gpt-5 for longer theories
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: intro + " " + question + " " + outro }
+            ],
+            max_tokens: 800, // Increased slightly for better streaming flow
+            temperature: 0.9,
+            stream: true,
+          })
+
+          for await (const chunk of completion) {
+            const content = chunk.choices[0]?.delta?.content
+            if (content) {
+              controller.enqueue(encoder.encode(content))
+            }
+          }
+          controller.close()
+        } catch (error) {
+          console.error("Stream error:", error)
+          controller.error(error)
+        }
+      }
     })
 
-    const answer =
-      completion.choices[0]?.message?.content?.trim() ||
-      "Sorry, I couldn't generate a response."
-
-    console.log("OpenAI response:", answer)
-    return NextResponse.json({ answer })
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+      },
+    })
 
   } catch (error) {
     console.error("MatPat API error:", error)

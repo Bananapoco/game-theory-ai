@@ -3,75 +3,141 @@
 import { Textarea } from "@/components/ui/textarea"
 import { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Terminal, Send, Cpu, Gamepad2, Tv, Sparkles } from "lucide-react"
+import { Terminal, Send, Cpu, Gamepad2, Tv, Sparkles, RotateCw } from "lucide-react"
+
+interface MatrixStream {
+  id: number
+  side: 'left' | 'right'
+  direction: 'top' | 'bottom'
+  xPercent: number
+  speed: number
+  content: string
+  opacity: number
+  fontSize: number
+}
+
 
 export default function Home() {
   const [input, setInput] = useState("")
-  const [response, setResponse] = useState("")
   const [displayedText, setDisplayedText] = useState("")
   const [isTyping, setIsTyping] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [lastQuestion, setLastQuestion] = useState<string>("")
+  const [matrixStreams, setMatrixStreams] = useState<MatrixStream[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Matrix Rain Effect Generator
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout
+
+    const spawnStreams = () => {
+      // 1 to 3 streams per interval
+      const count = Math.floor(Math.random() * 3) + 1 
+      const newStreams: MatrixStream[] = []
+
+      for (let i = 0; i < count; i++) {
+        const id = Date.now() + i
+        const side = Math.random() > 0.5 ? 'left' : 'right'
+        // Random direction: top or bottom
+        const direction = Math.random() > 0.5 ? 'top' : 'bottom'
+        // Random position within the side panel (0-100%)
+        const xPercent = Math.random() * 80 + 10 
+        // Duration: 4s to 6s (lower max speed)
+        const speed = Math.random() * 2 + 4 
+        // Length of the stream
+        // Spaced out binary content
+        const length = Math.floor(Math.random() * 10) + 8 
+        const content = Array.from({ length }, () => Math.random() > 0.5 ? '1' : '0').join('\n')
+        
+        // Subtle opacity: visible but ghostly (lower max opacity)
+        const opacity = Math.random() * 0.3 + 0.3 
+        
+        // Varied font size
+        const fontSize = Math.floor(Math.random() * 6) + 12 // 12px to 18px
+
+        newStreams.push({ id, side, direction, xPercent, speed, content, opacity, fontSize })
+
+        // Cleanup after animation
+        setTimeout(() => {
+          setMatrixStreams(prev => prev.filter(s => s.id !== id))
+        }, speed * 1000)
+      }
+
+      setMatrixStreams(prev => [...prev, ...newStreams])
+
+      // Continuous spawning every 1.5 seconds (shorter, consistent interval)
+      timeoutId = setTimeout(spawnStreams, 1500)
+    }
+
+    // Start immediately
+    timeoutId = setTimeout(spawnStreams, 500)
+
+    return () => clearTimeout(timeoutId)
+  }, [])
 
   // Scroll to bottom on new content
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [displayedText, isLoading])
 
-  // Typing animation effect
-  useEffect(() => {
-    if (response && isTyping) {
-      let currentIndex = 0
-      const textToType = response
-      
-      const typingInterval = setInterval(() => {
-        if (currentIndex < textToType.length) {
-          setDisplayedText(textToType.slice(0, currentIndex + 1))
-          currentIndex++
-        } else {
-          setIsTyping(false)
-          clearInterval(typingInterval)
-        }
-      }, 30) 
+  // Function to handle API call with streaming
+  async function fetchResponse(question: string) {
+    setIsLoading(true)
+    setDisplayedText("") // Clear previous response immediately
+    
+    try {
+      const res = await fetch("/api/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question }),
+      })
 
-      return () => clearInterval(typingInterval)
+      if (!res.ok) {
+        const errorText = await res.text()
+        throw new Error(errorText || res.statusText)
+      }
+
+      if (!res.body) throw new Error("No response body")
+
+      setIsLoading(false)
+      setIsTyping(true)
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        const chunk = decoder.decode(value, { stream: true })
+        setDisplayedText((prev) => prev + chunk)
+      }
+      
+    } catch (error) {
+      console.error("Error details:", error)
+      setDisplayedText(`Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`)
+    } finally {
+      setIsLoading(false)
+      setIsTyping(false)
     }
-  }, [response, isTyping])
+  }
 
   // Handle pressing Enter
   async function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
-      if (input.trim() && !isLoading) {
-        setIsLoading(true)
-        setDisplayedText("") // Clear previous response immediately
-        
-        try {
-          const res = await fetch("/api/ask", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ question: input }),
-          })
-
-          const data = await res.json()
-          
-          if (data.error) {
-            setResponse(`Error: ${data.error}`)
-          } else {
-            setResponse(data.answer)
-          }
-          
-          setIsTyping(true)
-          setInput("") 
-        } catch (error) {
-          console.error("Error details:", error)
-          setResponse(`Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`)
-          setIsTyping(true)
-          setInput("")
-        } finally {
-          setIsLoading(false)
-        }
+      if (input.trim() && !isLoading && !isTyping) {
+        const question = input.trim()
+        setLastQuestion(question)
+        setInput("") // Clear input immediately for better UX
+        await fetchResponse(question)
       }
+    }
+  }
+
+  // Handle regenerate
+  async function handleRegenerate() {
+    if (lastQuestion && !isLoading && !isTyping) {
+      await fetchResponse(lastQuestion)
     }
   }
 
@@ -89,6 +155,74 @@ export default function Home() {
       <div className="scanlines" />
       <div className="absolute inset-0 bg-gradient-to-b from-background via-transparent to-background pointer-events-none" />
 
+      {/* Matrix Rain Side Containers */}
+      <div className="fixed inset-y-0 left-0 w-[15vw] overflow-hidden pointer-events-none z-40">
+        <AnimatePresence>
+          {matrixStreams.filter(s => s.side === 'left').map(s => {
+            const styleObj: React.CSSProperties = { 
+              left: `${s.xPercent}%`, 
+              fontSize: `${s.fontSize}px`,
+            }
+            if (s.direction === 'top') {
+              styleObj.top = 0
+            } else {
+              styleObj.bottom = 0
+            }
+            return (
+              <motion.div
+                key={s.id}
+                initial={{ 
+                  y: s.direction === 'top' ? -500 : "120vh", 
+                  opacity: 0 
+                }}
+                animate={{ 
+                  y: s.direction === 'top' ? "120vh" : -500, 
+                  opacity: [0, s.opacity, s.opacity * 0.8, 0] 
+                }}
+                transition={{ duration: s.speed, ease: "linear", times: [0, 0.2, 0.8, 1] }}
+                style={styleObj}
+                className="absolute text-primary font-mono font-medium leading-[1.8] whitespace-pre text-center drop-shadow-[0_0_3px_rgba(0,255,0,0.4)]"
+              >
+                {s.content}
+              </motion.div>
+            )
+          })}
+        </AnimatePresence>
+      </div>
+      <div className="fixed inset-y-0 right-0 w-[15vw] overflow-hidden pointer-events-none z-40">
+         <AnimatePresence>
+          {matrixStreams.filter(s => s.side === 'right').map(s => {
+            const styleObj: React.CSSProperties = { 
+              left: `${s.xPercent}%`, 
+              fontSize: `${s.fontSize}px`,
+            }
+            if (s.direction === 'top') {
+              styleObj.top = 0
+            } else {
+              styleObj.bottom = 0
+            }
+            return (
+              <motion.div
+                key={s.id}
+                initial={{ 
+                  y: s.direction === 'top' ? -500 : "120vh", 
+                  opacity: 0 
+                }}
+                animate={{ 
+                  y: s.direction === 'top' ? "120vh" : -500, 
+                  opacity: [0, s.opacity, s.opacity * 0.8, 0] 
+                }}
+                transition={{ duration: s.speed, ease: "linear", times: [0, 0.2, 0.8, 1] }}
+                style={styleObj}
+                className="absolute text-primary font-mono font-medium leading-[1.8] whitespace-pre text-center drop-shadow-[0_0_3px_rgba(0,255,0,0.4)]"
+              >
+                {s.content}
+              </motion.div>
+            )
+          })}
+        </AnimatePresence>
+      </div>
+
       <main className="relative z-10 container mx-auto px-4 py-8 min-h-screen flex flex-col items-center justify-start gap-8 max-w-5xl">
         
         {/* Header */}
@@ -101,9 +235,9 @@ export default function Home() {
           <div className="relative group">
             <div className="absolute -inset-1 bg-primary/20 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition duration-500" />
             <img 
-              src="https://logos-world.net/wp-content/uploads/2025/01/Game-Theory-Logo.png" 
+              src="/logo.png" 
               alt="Game Theory" 
-              className="w-32 h-auto relative drop-shadow-[0_0_15px_rgba(0,255,0,0.3)]"
+              className="w-64 h-auto relative drop-shadow-[0_0_15px_rgba(0,255,0,0.3)]"
             />
           </div>
           
@@ -140,14 +274,14 @@ export default function Home() {
                   <span>OUTPUT_STREAM_V2.0</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full ${isLoading ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`} />
-                  <span>{isLoading ? 'PROCESSING...' : 'READY'}</span>
+                  <span className={`w-2 h-2 rounded-full ${isLoading || isTyping ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`} />
+                  <span>{isLoading ? 'PROCESSING...' : isTyping ? 'RECEIVING STREAM...' : 'READY'}</span>
                 </div>
               </div>
 
               {/* Content */}
               <div className="space-y-6 font-mono relative z-10">
-                {!displayedText && !isLoading && (
+                {!displayedText && !isLoading && !isTyping && (
                   <div className="text-muted-foreground/50 text-center py-10">
                     AWAITING INPUT... <br/>
                     INITIALIZE QUERY BELOW
@@ -171,6 +305,20 @@ export default function Home() {
                   </div>
                 )}
                 <div ref={messagesEndRef} />
+                
+                {/* Regenerate Button - Bottom Right of Output */}
+                {displayedText && !isLoading && !isTyping && lastQuestion && (
+                  <div className="pt-4 mt-4 border-t border-white/5 flex justify-end">
+                    <button
+                      onClick={handleRegenerate}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 hover:border-primary/40 transition-all duration-300 group font-mono text-sm"
+                      title="Regenerate response"
+                    >
+                      <RotateCw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" />
+                      <span>REGENERATE OUTPUT</span>
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -180,7 +328,7 @@ export default function Home() {
               <div className="relative bg-black/60 backdrop-blur-xl rounded-xl border border-white/10 p-2 flex gap-4 items-end transition-all focus-within:ring-1 focus-within:ring-primary/50">
                 <Textarea
                   placeholder="Insert query regarding lore, theories, or timeline discrepancies..."
-                  disabled={isLoading}
+                  disabled={isLoading || isTyping}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
@@ -188,7 +336,7 @@ export default function Home() {
                 />
                 <button 
                   onClick={() => handleKeyDown({ key: 'Enter', preventDefault: () => {} } as any)}
-                  disabled={!input.trim() || isLoading}
+                  disabled={!input.trim() || isLoading || isTyping}
                   className="mb-2 mr-2 p-3 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-300"
                 >
                   <Send className="w-5 h-5" />
@@ -228,7 +376,8 @@ export default function Home() {
                   <button
                     key={i}
                     onClick={() => setInput(q.text)}
-                    className="flex items-center gap-3 w-full p-3 rounded-lg bg-white/5 hover:bg-white/10 border border-transparent hover:border-primary/30 transition-all text-left group"
+                    disabled={isLoading || isTyping}
+                    className="flex items-center gap-3 w-full p-3 rounded-lg bg-white/5 hover:bg-white/10 border border-transparent hover:border-primary/30 transition-all text-left group disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <div className="text-primary opacity-50 group-hover:opacity-100 transition-opacity">
                       {q.icon}
