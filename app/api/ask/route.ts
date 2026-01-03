@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import openai from "@/utils/openai"
 
+export const dynamic = "force-dynamic"
+
 // --- MatPat style reference (shortened for context efficiency)
 const matpatExcerpt = "\"HELLOOOOO Internet! Welcome to Game Theory— the show where we pick apart the logic of our favorite games. " +
   "Now, at first glance, this might seem obvious—but what if I told you there's a hidden layer beneath the code? " +
