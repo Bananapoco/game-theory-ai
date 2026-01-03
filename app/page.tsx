@@ -1,5 +1,4 @@
 "use client"
-
 import { Textarea } from "@/components/ui/textarea"
 import { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
@@ -16,15 +15,26 @@ interface MatrixStream {
   fontSize: number
 }
 
+interface StreamChar {
+  char: string
+  id: string
+}
+
+
 
 export default function Home() {
   const [input, setInput] = useState("")
-  const [displayedText, setDisplayedText] = useState("")
+  const [displayedText, setDisplayedText] = useState<StreamChar[]>([])
   const [isTyping, setIsTyping] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [lastQuestion, setLastQuestion] = useState<string>("")
   const [matrixStreams, setMatrixStreams] = useState<MatrixStream[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  
+  // Streaming state refs
+  const streamBuffer = useRef<string[]>([])
+  const streamIndex = useRef(0)
+  const isStreamFinished = useRef(false)
 
   // Matrix Rain Effect Generator
   useEffect(() => {
@@ -49,8 +59,8 @@ export default function Home() {
         const length = Math.floor(Math.random() * 10) + 8 
         const content = Array.from({ length }, () => Math.random() > 0.5 ? '1' : '0').join('\n')
         
-        // Subtle opacity: visible but ghostly (lower max opacity)
-        const opacity = Math.random() * 0.3 + 0.3 
+        // Subtle opacity: visible but ghostly (reduced opacity)
+        const opacity = Math.random() * 0.2 + 0.15 
         
         // Varied font size
         const fontSize = Math.floor(Math.random() * 6) + 12 // 12px to 18px
@@ -75,6 +85,63 @@ export default function Home() {
     return () => clearTimeout(timeoutId)
   }, [])
 
+  // Smooth typing effect
+  useEffect(() => {
+    if (!isTyping) return
+
+    let timeoutId: NodeJS.Timeout
+
+    const typeChar = () => {
+      const buffer = streamBuffer.current
+      const currentIndex = streamIndex.current
+
+      if (currentIndex < buffer.length) {
+        const char = buffer[currentIndex]
+        setDisplayedText(prev => [...prev, { char, id: `${currentIndex}-${Date.now()}` }])
+        streamIndex.current++
+
+        // Calculate natural delay
+        let delay = 10 + Math.random() * 10 // Faster base speed (10-20ms)
+        
+        // Check previous char for punctuation breathing
+        const prevChar = currentIndex > 0 ? buffer[currentIndex - 1] : ''
+        if (['.', '!', '?', ':', ';'].includes(prevChar)) {
+           delay += 20 // Tiny breathing pause after punctuation
+        } else if (prevChar === ',') {
+           delay += 10
+        }
+
+        // Punctuation pauses (on the punctuation itself) - reduced for flow
+        if (char === '.' || char === '!' || char === '?') delay += 50
+        else if (char === ',') delay += 20
+        else if (char === '\n') delay += 40
+
+        // Catch up logic if falling behind network
+        const lag = buffer.length - currentIndex
+        if (lag > 50) {
+          delay = 1 // Flush fast
+        } else if (lag > 25) {
+          delay = 5 // Very fast
+        } else if (lag > 10) {
+          delay /= 2 // Speed up
+        }
+
+        timeoutId = setTimeout(typeChar, delay)
+      } else {
+        if (isStreamFinished.current) {
+          setIsTyping(false)
+        } else {
+          // Buffer empty but stream not done, wait for more data
+          timeoutId = setTimeout(typeChar, 20)
+        }
+      }
+    }
+
+    typeChar()
+
+    return () => clearTimeout(timeoutId)
+  }, [isTyping])
+
   // Scroll to bottom on new content
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -83,7 +150,10 @@ export default function Home() {
   // Function to handle API call with streaming
   async function fetchResponse(question: string) {
     setIsLoading(true)
-    setDisplayedText("") // Clear previous response immediately
+    setDisplayedText([]) // Clear previous response immediately
+    streamBuffer.current = []
+    streamIndex.current = 0
+    isStreamFinished.current = false
     
     try {
       const res = await fetch("/api/ask", {
@@ -109,15 +179,22 @@ export default function Home() {
         const { done, value } = await reader.read()
         if (done) break
         const chunk = decoder.decode(value, { stream: true })
-        setDisplayedText((prev) => prev + chunk)
+        // Append to buffer as characters (handling emojis correctly)
+        for (const char of chunk) {
+          streamBuffer.current.push(char)
+        }
       }
+      isStreamFinished.current = true
       
     } catch (error) {
       console.error("Error details:", error)
-      setDisplayedText(`Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`)
+      const errorMsg = `Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`
+      // Convert error string to StreamChars
+      setDisplayedText(errorMsg.split('').map((char, i) => ({ char, id: `err-${i}` })))
+      setIsTyping(false)
     } finally {
       setIsLoading(false)
-      setIsTyping(false)
+      // Do not setIsTyping(false) here, the effect handles it
     }
   }
 
@@ -281,7 +358,7 @@ export default function Home() {
 
               {/* Content */}
               <div className="space-y-6 font-mono relative z-10">
-                {!displayedText && !isLoading && !isTyping && (
+                {displayedText.length === 0 && !isLoading && !isTyping && (
                   <div className="text-muted-foreground/50 text-center py-10">
                     AWAITING INPUT... <br/>
                     INITIALIZE QUERY BELOW
@@ -296,10 +373,12 @@ export default function Home() {
                   </div>
                 )}
 
-                {displayedText && (
+                {displayedText.length > 0 && (
                   <div className="prose prose-invert prose-p:text-green-50/90 prose-headings:text-primary max-w-none">
-                    <p className="text-lg leading-relaxed whitespace-pre-wrap">
-                      {displayedText}
+                    <p className="text-lg leading-relaxed whitespace-pre-wrap break-words">
+                      {displayedText.map((item) => (
+                        <span key={item.id} className="animate-stream-fade">{item.char}</span>
+                      ))}
                       {isTyping && <span className="inline-block w-3 h-5 ml-1 bg-primary animate-pulse align-middle" />}
                     </p>
                   </div>
@@ -307,7 +386,7 @@ export default function Home() {
                 <div ref={messagesEndRef} />
                 
                 {/* Regenerate Button - Bottom Right of Output */}
-                {displayedText && !isLoading && !isTyping && lastQuestion && (
+                {displayedText.length > 0 && !isLoading && !isTyping && lastQuestion && (
                   <div className="pt-4 mt-4 border-t border-white/5 flex justify-end">
                     <button
                       onClick={handleRegenerate}

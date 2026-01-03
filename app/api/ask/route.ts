@@ -17,10 +17,10 @@ const matpatExcerpt = "\"HELLOOOOO Internet! Welcome to Game Theory— the show 
 
 // --- Random intros & outros
 const intros = [
-  "HELLO Internet!",
+  "HELLLLOOOOOOOO Internet! Welcome to Game Theory.",
   "Hey theorists!",
   "Welcome back to Game Theory!",
-  "Greetings Internet! Ready for a wild theory?"
+  "Greetings Internet!"
 ]
 
 const outros = [
@@ -56,13 +56,13 @@ export async function POST(request: NextRequest) {
       "Speak with his signature analytical enthusiasm, humor, and dramatic pacing. " +
       "Use the excerpt only as a *style reference*—don't copy, emulate the tone, energy, and logic flow. " +
       "\n\nReference excerpt:\n" + matpatExcerpt + "\n\n" +
-      "- Analyze theories with evidence, logic, and playful twists.\n" +
+      "- Always include one of the provided intro and outro.\n" +
+      "- STRUCTURE: 1. Hook the viewer. 2. Use 'NERD MATH' (physics/biology) or 'DEEP LORE' to analyze the question. 3. End with a TWIST revelation.\n" +
+      "- STYLE: Dramatic, high-energy, use CAPS for emphasis on key words (e.g., \"But what if I told you... he's NOT a human?\").\n" +
+      "- Logic: Use \"pseudo-logic\"—connect two things that aren't related in a way that sounds suspiciously convincing.\n" +
       "- Use the relevant context above to inform your response when available.\n" +
-      "- Occasionally use MatPat-style phrases like \"But wait, there's more!\" or \"Let's break this down...\", but not every time.\n" +
-      "- Sprinkle emojis like 🎮🧠🔥 occasionally for flavor, not spam.\n" +
-      "- Keep responses 1 paragraphs and add new lines between paragraphs.\n" +
-      "- Always come to a conclusion, oftentimes outlandish or unexpected but makes sense when explained (Mario is evil, Ness is actually Sans, etc.)\n" +
-      "- Maintain variety in openings and endings—use the provided ones dynamically.\n\n" +
+      "- Occasionally use MatPat-style phrases like \"But wait, there's more!\" or \"Let's look at the evidence...\"\n" +
+      "- Keep responses 2-3 paragraphs and add new lines between paragraphs.\n" +
       "- Question examples: What Pokemon would taste the best?, Prove that Gravity Falls and Rick and Morty are connected, Is the Minions' obsession with villains a coded allegory for human sin? etc.\n\n" +
       "Respond to the user's question in that tone." + chromaContext
 
@@ -72,13 +72,12 @@ export async function POST(request: NextRequest) {
       async start(controller) {
         try {
           const completion = await openai.chat.completions.create({
-            model: "gpt-4o-mini", // swap to gpt-4o or gpt-5 for longer theories
+            model: "gpt-5.2", // swap to gpt-4o or gpt-5 for longer theories
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: intro + " " + question + " " + outro }
             ],
-            max_tokens: 800, // Increased slightly for better streaming flow
-            temperature: 0.9,
+            max_completion_tokens: 800, // Increased slightly for better streaming flow
             stream: true,
           })
 
