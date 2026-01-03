@@ -5,7 +5,7 @@ An AI-powered research terminal that creates theories of your favorite games wit
 ## Key Features
 - **Neural Persona Engine**: Custom-engineered prompt architecture that emulates MatPat's specific delivery style, including "pseudo-logic" connections and dramatic  emphasis.
 - **Streaming Terminal UI**: A high-performance, real-time response stream and "typewriter" animation that handles natural punctuation pauses.
-- **Advanced LLM Integration**: Optimized for the latest OpenAI models (GPT-5.2) using streaming completions and adaptive token management.
+- **LLM Integration**: Optimized for the latest OpenAI models (GPT-5.2) using streaming completions and adaptive token management.
 - **Regenerative Output**: Built-in state management allows users to instantly re-roll theories for different "outlandish" conclusions.
 
 ## Tech Stack
