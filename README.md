@@ -4,7 +4,6 @@ An AI-powered research terminal that creates theories of your favorite games wit
 
 ## Key Features
 - **Neural Persona Engine**: Custom-engineered prompt architecture that emulates MatPat's specific delivery style, including "pseudo-logic" connections and dramatic  emphasis.
-- **In Progress: RAG-Enhanced Theory (ChromaDB)**: Integrated with a vector database (ChromaDB) to retrieve real lore evidence from fandom wikis to inform AI responses.
 - **Streaming Terminal UI**: A high-performance, real-time response stream and "typewriter" animation that handles natural punctuation pauses.
 - **Advanced LLM Integration**: Optimized for the latest OpenAI models (GPT-5.2) using streaming completions and adaptive token management.
 - **Regenerative Output**: Built-in state management allows users to instantly re-roll theories for different "outlandish" conclusions.
@@ -20,7 +19,8 @@ OpenAI API (GPT-5.2), Node.js
 **Database**
 ChromaDB
 
-Future updates include expanding the vector store to include full game scripts for 100% lore accuracy.
+In Progress: RAG-Enhanced Theory (ChromaDB)**: Integrating with a vector database (ChromaDB) to retrieve real lore evidence from fandom wikis to inform AI responses for improved accuracy.
+
 
 <img src="screenshots/Screenshot 2026-01-03 at 1.10.06 PM.png" height="400" alt="screenshot"/>
 <img src="screenshots/Screenshot 2026-01-03 at 1.09.32 PM.png" height="400" alt="screenshot"/>
