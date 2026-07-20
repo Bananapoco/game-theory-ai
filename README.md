@@ -1,6 +1,6 @@
 # Game Theory AI: MatPat Research Terminal
 
-Create theories of your favorite games with (based on a certain popular youtuber...)
+Create theories of your favorite games (based on a certain popular youtuber...)
 
 ## Tech Stack
 
